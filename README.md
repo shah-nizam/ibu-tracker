@@ -31,6 +31,10 @@ Use a worker-style start command for the bot process:
 
 - `python main.py`
 
+Build/install command (if Railway does not auto-install from `pyproject.toml`):
+
+- `pip install -r requirements.txt`
+
 Required environment variables:
 
 - `BOT_TOKEN` (or `TELEGRAM_BOT_TOKEN`)
@@ -46,6 +50,7 @@ Notes:
 - If `ALLOWED_USER_IDS` is empty and `ALLOWLIST_STRICT` is not set, the bot accepts all users.
 - `postgres://...` URLs are normalized automatically for SQLAlchemy.
 - On startup, the bot clears webhook mode and uses long polling.
+- If logs show `uvicorn: command not found`, the service is either using the wrong start command for the bot or dependencies were not installed during build.
 
 ## Commands
 
