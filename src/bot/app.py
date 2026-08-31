@@ -65,6 +65,9 @@ def main() -> None:
     _ = ZoneInfo(settings.timezone)
 
     async def on_startup(app):
+        me = await app.bot.get_me()
+        logger.info("Bot authenticated as @%s (id=%s)", me.username or "<no-username>", me.id)
+
         # Polling and webhooks cannot be active at the same time.
         await app.bot.delete_webhook(drop_pending_updates=False)
         logger.info("Webhook cleared. Starting Telegram long polling.")
@@ -86,4 +89,8 @@ def main() -> None:
     else:
         logger.warning("ALLOWED_USER_IDS is empty. Bot is accepting all users.")
 
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
+    try:
+        application.run_polling(allowed_updates=Update.ALL_TYPES)
+    except Exception:
+        logger.exception("Bot polling crashed")
+        raise
