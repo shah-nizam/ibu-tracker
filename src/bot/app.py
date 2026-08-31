@@ -16,6 +16,18 @@ repo = Repository()
 logger = logging.getLogger(__name__)
 
 
+def _user_label(full_name: str, telegram_user_id: int) -> str:
+    return f"{(full_name or 'Unknown').strip()} ({telegram_user_id})"
+
+
+def _parse_appointment_payload(raw: str) -> tuple[str, str, str]:
+    parts = [segment.strip() for segment in raw.split("|")]
+    title = parts[0] if parts else ""
+    location = parts[1] if len(parts) > 1 else ""
+    notes = parts[2] if len(parts) > 2 else ""
+    return title, location, notes
+
+
 @allowlisted
 async def remind(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.effective_user
@@ -87,6 +99,103 @@ async def list_reminders(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
 
 @allowlisted
+async def appointment(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    rows = repo.list_upcoming_appointments(limit=30)
+    if not rows:
+        await update.message.reply_text("No upcoming appointments.")
+        return
+
+    settings = get_settings()
+    local_tz = ZoneInfo(settings.timezone)
+
+    lines: list[str] = []
+    for telegram_user_id, full_name, row in rows:
+        local_dt = row.appointment_at.replace(tzinfo=ZoneInfo("UTC")).astimezone(local_tz)
+        lines.append(
+            f"- #{row.id} {_user_label(full_name, telegram_user_id)}\n"
+            f"  {local_dt.strftime('%a, %d %b %Y %I:%M %p')} - {row.title}"
+            f"{f'\n  Location: {row.location}' if row.location else ''}"
+            f"{f'\n  Notes: {row.notes}' if row.notes else ''}"
+        )
+
+    await update.message.reply_text("Upcoming appointments:\n" + "\n\n".join(lines))
+
+
+@allowlisted
+async def add_appointment(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if len(context.args) < 3:
+        await update.message.reply_text(
+            "Usage: /add_appointment <YYYY-MM-DD> <HH:MM> <title> [| location] [| notes]"
+        )
+        return
+
+    date_str = context.args[0].strip()
+    time_str = context.args[1].strip()
+    payload = " ".join(context.args[2:]).strip()
+    if not payload:
+        await update.message.reply_text("Title is required.")
+        return
+
+    try:
+        local_naive = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M")
+    except ValueError:
+        await update.message.reply_text("Invalid date/time. Use YYYY-MM-DD HH:MM, for example 2026-09-17 08:20")
+        return
+
+    title, location, notes = _parse_appointment_payload(payload)
+    if not title:
+        await update.message.reply_text("Title is required before optional | location | notes.")
+        return
+
+    settings = get_settings()
+    local_tz = ZoneInfo(settings.timezone)
+    utc_naive = local_naive.replace(tzinfo=local_tz).astimezone(ZoneInfo("UTC")).replace(tzinfo=None)
+
+    user = update.effective_user
+    created = repo.add_appointment(
+        telegram_user_id=user.id,
+        full_name=user.full_name,
+        appointment_at_utc_naive=utc_naive,
+        title=title,
+        location=location,
+        notes=notes,
+    )
+
+    await update.message.reply_text(
+        f"Saved appointment #{created.id}: {local_naive.strftime('%Y-%m-%d %H:%M')} - {title}"
+    )
+
+
+@allowlisted
+async def delete_appointment(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if len(context.args) != 1:
+        await update.message.reply_text("Usage: /delete_appointment <appointment_id>")
+        return
+
+    try:
+        appointment_id = int(context.args[0].strip())
+        if appointment_id <= 0:
+            raise ValueError()
+    except ValueError:
+        await update.message.reply_text("Appointment ID must be a positive number.")
+        return
+
+    deleted = repo.deactivate_appointment(appointment_id)
+    if not deleted:
+        await update.message.reply_text("Appointment not found or already deleted.")
+        return
+
+    telegram_user_id, full_name, row = deleted
+    settings = get_settings()
+    local_tz = ZoneInfo(settings.timezone)
+    local_dt = row.appointment_at.replace(tzinfo=ZoneInfo("UTC")).astimezone(local_tz)
+    await update.message.reply_text(
+        f"Deleted appointment #{row.id}: {_user_label(full_name, telegram_user_id)} - "
+        f"{local_dt.strftime('%Y-%m-%d %H:%M')} - {row.title}"
+    )
+
+
+@allowlisted
 async def delete_reminder(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if len(context.args) != 1:
         await update.message.reply_text("Usage: /delete_reminder <reminder_id>")
@@ -144,6 +253,9 @@ def main() -> None:
     application.add_handler(CommandHandler("remind", remind))
     application.add_handler(CommandHandler("list_reminders", list_reminders))
     application.add_handler(CommandHandler("delete_reminder", delete_reminder))
+    application.add_handler(CommandHandler("appointment", appointment))
+    application.add_handler(CommandHandler("add_appointment", add_appointment))
+    application.add_handler(CommandHandler("delete_appointment", delete_appointment))
 
     load_persisted_reminders(application)
 

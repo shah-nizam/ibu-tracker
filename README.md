@@ -61,6 +61,9 @@ Notes:
 - /remind <insulin|glucose|bp> <HH:MM> [dose_units]
 - /list_reminders
 - /delete_reminder <reminder_id>
+- /appointment
+- /add_appointment <YYYY-MM-DD> <HH:MM> <title> [| location] [| notes]
+- /delete_appointment <appointment_id>
 
 ## Notes
 

@@ -36,7 +36,10 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "/recent - Show recent readings for all users\n"
         "/remind <insulin|glucose|bp> <HH:MM> [dose_units] - Add daily reminder\n"
         "/list_reminders - Show daily reminders for all users\n"
-        "/delete_reminder <reminder_id> - Delete a reminder by ID"
+        "/delete_reminder <reminder_id> - Delete a reminder by ID\n"
+        "/appointment - Show upcoming appointments\n"
+        "/add_appointment <YYYY-MM-DD> <HH:MM> <title> [| location] [| notes] - Add appointment\n"
+        "/delete_appointment <appointment_id> - Delete appointment by ID"
     )
 
 

@@ -4,7 +4,7 @@ from zoneinfo import ZoneInfo
 
 from sqlalchemy import desc, select
 
-from db.models import BloodPressureReading, GlucoseReading, InsulinDose, Reminder, User
+from db.models import Appointment, BloodPressureReading, GlucoseReading, InsulinDose, Reminder, User
 from db.session import get_session
 from core.config import get_settings
 
@@ -85,6 +85,30 @@ class Repository:
             session.refresh(reminder)
             return reminder
 
+    def add_appointment(
+        self,
+        telegram_user_id: int,
+        full_name: str,
+        appointment_at_utc_naive: datetime,
+        title: str,
+        location: str = "",
+        notes: str = "",
+    ) -> Appointment:
+        with get_session() as session:
+            user = self._get_or_create_user_in_session(session, telegram_user_id, full_name)
+            appointment = Appointment(
+                user_id=user.id,
+                appointment_at=appointment_at_utc_naive,
+                title=title,
+                location=location,
+                notes=notes,
+                active=1,
+            )
+            session.add(appointment)
+            session.commit()
+            session.refresh(appointment)
+            return appointment
+
     def list_active_reminders(self, telegram_user_id: int) -> list[Reminder]:
         with get_session() as session:
             user = session.execute(
@@ -125,6 +149,34 @@ class Repository:
             session.commit()
             session.refresh(reminder)
             return telegram_user_id, full_name, reminder
+
+    def list_upcoming_appointments(self, limit: int = 30) -> list[tuple[int, str, Appointment]]:
+        now_utc_naive = datetime.utcnow()
+        with get_session() as session:
+            rows = session.execute(
+                select(User.telegram_user_id, User.full_name, Appointment)
+                .join(Appointment, Appointment.user_id == User.id)
+                .where(Appointment.active == 1, Appointment.appointment_at >= now_utc_naive)
+                .order_by(Appointment.appointment_at.asc())
+                .limit(limit)
+            ).all()
+            return [(row[0], row[1], row[2]) for row in rows]
+
+    def deactivate_appointment(self, appointment_id: int) -> Optional[tuple[int, str, Appointment]]:
+        with get_session() as session:
+            row = session.execute(
+                select(User.telegram_user_id, User.full_name, Appointment)
+                .join(Appointment, Appointment.user_id == User.id)
+                .where(Appointment.id == appointment_id, Appointment.active == 1)
+            ).first()
+            if not row:
+                return None
+
+            telegram_user_id, full_name, appointment = row
+            appointment.active = 0
+            session.commit()
+            session.refresh(appointment)
+            return telegram_user_id, full_name, appointment
 
     def load_all_active_reminders(self) -> list[tuple[int, Reminder]]:
         with get_session() as session:
