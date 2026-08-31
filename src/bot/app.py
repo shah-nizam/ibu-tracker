@@ -9,7 +9,7 @@ from bot.auth import allowlisted
 from bot.handlers import command_handlers
 from core.config import get_settings
 from db.session import init_db
-from services.reminders import load_persisted_reminders, schedule_daily_reminder
+from services.reminders import load_persisted_reminders, remove_scheduled_reminder, schedule_daily_reminder
 from services.repository import Repository
 
 repo = Repository()
@@ -78,12 +78,41 @@ async def list_reminders(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         return
 
     lines = [
-        f"- {full_name or 'Unknown'} ({telegram_user_id}): "
+        f"- #{row.id} {full_name or 'Unknown'} ({telegram_user_id}): "
         f"{row.kind} at {row.time_of_day.strftime('%H:%M')}"
         f"{f' ({row.dose_units:g} units)' if row.kind == 'insulin' and row.dose_units is not None else ''}"
         for telegram_user_id, full_name, row in reminders
     ]
     await update.message.reply_text("Active reminders (all users):\n" + "\n".join(lines))
+
+
+@allowlisted
+async def delete_reminder(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if len(context.args) != 1:
+        await update.message.reply_text("Usage: /delete_reminder <reminder_id>")
+        return
+
+    try:
+        reminder_id = int(context.args[0].strip())
+        if reminder_id <= 0:
+            raise ValueError()
+    except ValueError:
+        await update.message.reply_text("Reminder ID must be a positive number. Use /list_reminders to find it.")
+        return
+
+    deactivated = repo.deactivate_reminder(reminder_id)
+    if not deactivated:
+        await update.message.reply_text("Reminder not found or already deleted.")
+        return
+
+    telegram_user_id, full_name, reminder = deactivated
+    remove_scheduled_reminder(context.application, telegram_user_id, reminder.id)
+
+    dose_text = f" ({reminder.dose_units:g} units)" if reminder.kind == "insulin" and reminder.dose_units is not None else ""
+    await update.message.reply_text(
+        f"Deleted reminder #{reminder.id}: {full_name or 'Unknown'} ({telegram_user_id}) - "
+        f"{reminder.kind} at {reminder.time_of_day.strftime('%H:%M')}{dose_text}"
+    )
 
 
 def main() -> None:
@@ -114,6 +143,7 @@ def main() -> None:
 
     application.add_handler(CommandHandler("remind", remind))
     application.add_handler(CommandHandler("list_reminders", list_reminders))
+    application.add_handler(CommandHandler("delete_reminder", delete_reminder))
 
     load_persisted_reminders(application)
 

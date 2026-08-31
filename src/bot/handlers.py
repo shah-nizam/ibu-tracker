@@ -35,7 +35,8 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "/log - Add a new reading\n"
         "/recent - Show recent readings for all users\n"
         "/remind <insulin|glucose|bp> <HH:MM> [dose_units] - Add daily reminder\n"
-        "/list_reminders - Show daily reminders for all users"
+        "/list_reminders - Show daily reminders for all users\n"
+        "/delete_reminder <reminder_id> - Delete a reminder by ID"
     )
 
 

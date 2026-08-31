@@ -110,6 +110,22 @@ class Repository:
             ).all()
             return [(row[0], row[1], row[2]) for row in rows]
 
+    def deactivate_reminder(self, reminder_id: int) -> Optional[tuple[int, str, Reminder]]:
+        with get_session() as session:
+            row = session.execute(
+                select(User.telegram_user_id, User.full_name, Reminder)
+                .join(Reminder, Reminder.user_id == User.id)
+                .where(Reminder.id == reminder_id, Reminder.active == 1)
+            ).first()
+            if not row:
+                return None
+
+            telegram_user_id, full_name, reminder = row
+            reminder.active = 0
+            session.commit()
+            session.refresh(reminder)
+            return telegram_user_id, full_name, reminder
+
     def load_all_active_reminders(self) -> list[tuple[int, Reminder]]:
         with get_session() as session:
             rows = session.execute(

@@ -65,3 +65,10 @@ def load_persisted_reminders(app: Application) -> None:
             when=reminder.time_of_day,
             dose_units=reminder.dose_units,
         )
+
+
+def remove_scheduled_reminder(app: Application, user_id: int, reminder_id: int) -> bool:
+    jobs = app.job_queue.get_jobs_by_name(_job_name(user_id, reminder_id))
+    for job in jobs:
+        job.schedule_removal()
+    return bool(jobs)
