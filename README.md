@@ -59,6 +59,7 @@ Notes:
 - /log
 - /recent
 - /remind <insulin|glucose|bp> <HH:MM> [dose_units]
+- /remind_all <insulin|glucose|bp> <HH:MM> [dose_units]
 - /list_reminders
 - /delete_reminder <reminder_id>
 - /appointment

@@ -28,41 +28,45 @@ def _parse_appointment_payload(raw: str) -> tuple[str, str, str]:
     return title, location, notes
 
 
-@allowlisted
-async def remind(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    user = update.effective_user
-    args = context.args
+def _parse_remind_args(args: list[str]) -> tuple[str, datetime.time, float | None] | None:
     if len(args) < 2:
-        await update.message.reply_text("Usage: /remind <insulin|glucose|bp> <HH:MM> [dose_units]")
-        return
+        return None
 
     kind = args[0].strip().lower()
     if kind not in {"insulin", "glucose", "bp"}:
-        await update.message.reply_text("Kind must be one of: insulin, glucose, bp")
-        return
+        return None
 
     if kind == "insulin" and len(args) not in {2, 3}:
-        await update.message.reply_text("Usage: /remind insulin <HH:MM> [dose_units]")
-        return
+        return None
     if kind != "insulin" and len(args) != 2:
-        await update.message.reply_text(f"Usage: /remind {kind} <HH:MM>")
-        return
+        return None
 
     try:
         parsed = datetime.strptime(args[1].strip(), "%H:%M").time()
     except ValueError:
-        await update.message.reply_text("Invalid time format. Use HH:MM, for example 07:30")
-        return
+        return None
 
     dose_units = None
     if kind == "insulin" and len(args) == 3:
         try:
             dose_units = float(args[2].strip())
             if dose_units <= 0:
-                raise ValueError()
+                return None
         except ValueError:
-            await update.message.reply_text("Invalid insulin dose. Use a positive number, for example 10 or 8.5")
-            return
+            return None
+
+    return kind, parsed, dose_units
+
+
+@allowlisted
+async def remind(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user = update.effective_user
+    parsed_args = _parse_remind_args(context.args)
+    if not parsed_args:
+        await update.message.reply_text("Usage: /remind <insulin|glucose|bp> <HH:MM> [dose_units]")
+        return
+
+    kind, parsed, dose_units = parsed_args
 
     reminder = repo.add_reminder(user.id, user.full_name, kind, parsed, dose_units=dose_units)
     schedule_daily_reminder(
@@ -80,6 +84,44 @@ async def remind(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         )
     else:
         await update.message.reply_text(f"Saved daily {kind} reminder at {parsed.strftime('%H:%M')}")
+
+
+@allowlisted
+async def remind_all(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    parsed_args = _parse_remind_args(context.args)
+    if not parsed_args:
+        await update.message.reply_text("Usage: /remind_all <insulin|glucose|bp> <HH:MM> [dose_units]")
+        return
+
+    kind, parsed, dose_units = parsed_args
+    allowlist = sorted(get_settings().allowlist)
+    if not allowlist:
+        await update.message.reply_text("Broadcast failed: ALLOWED_USER_IDS is empty.")
+        return
+
+    created_count = 0
+    for telegram_user_id in allowlist:
+        reminder = repo.add_reminder(
+            telegram_user_id=telegram_user_id,
+            full_name=f"User {telegram_user_id}",
+            kind=kind,
+            at_time=parsed,
+            dose_units=dose_units,
+        )
+        schedule_daily_reminder(
+            context.application,
+            telegram_user_id,
+            reminder.id,
+            kind,
+            parsed,
+            dose_units=dose_units,
+        )
+        created_count += 1
+
+    dose_text = f" ({dose_units:g} units)" if kind == "insulin" and dose_units is not None else ""
+    await update.message.reply_text(
+        f"Broadcast reminder created for {created_count} user(s): {kind} at {parsed.strftime('%H:%M')}{dose_text}"
+    )
 
 
 @allowlisted
@@ -251,6 +293,7 @@ def main() -> None:
         application.add_handler(handler)
 
     application.add_handler(CommandHandler("remind", remind))
+    application.add_handler(CommandHandler("remind_all", remind_all))
     application.add_handler(CommandHandler("list_reminders", list_reminders))
     application.add_handler(CommandHandler("delete_reminder", delete_reminder))
     application.add_handler(CommandHandler("appointment", appointment))
