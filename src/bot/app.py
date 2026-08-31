@@ -1,4 +1,5 @@
 from datetime import datetime
+import logging
 from zoneinfo import ZoneInfo
 
 from telegram import Update
@@ -12,6 +13,7 @@ from services.reminders import load_persisted_reminders, schedule_daily_reminder
 from services.repository import Repository
 
 repo = Repository()
+logger = logging.getLogger(__name__)
 
 
 @allowlisted
@@ -50,14 +52,24 @@ async def list_reminders(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
 
 def main() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+
     settings = get_settings()
     if not settings.bot_token.strip():
-        raise RuntimeError("BOT_TOKEN is required. Add it to .env before running the bot.")
+        raise RuntimeError(
+            "BOT_TOKEN (or TELEGRAM_BOT_TOKEN) is required. Set it in environment variables."
+        )
 
     init_db()
 
     _ = ZoneInfo(settings.timezone)
-    application = ApplicationBuilder().token(settings.bot_token).build()
+
+    async def on_startup(app):
+        # Polling and webhooks cannot be active at the same time.
+        await app.bot.delete_webhook(drop_pending_updates=False)
+        logger.info("Webhook cleared. Starting Telegram long polling.")
+
+    application = ApplicationBuilder().token(settings.bot_token).post_init(on_startup).build()
 
     for handler in command_handlers():
         application.add_handler(handler)
@@ -66,4 +78,12 @@ def main() -> None:
     application.add_handler(CommandHandler("list_reminders", list_reminders))
 
     load_persisted_reminders(application)
+
+    if settings.allowlist:
+        logger.info("Allowlist enabled for %d user(s).", len(settings.allowlist))
+    elif settings.allowlist_strict:
+        logger.warning("ALLOWLIST_STRICT is true but ALLOWED_USER_IDS is empty. All users will be rejected.")
+    else:
+        logger.warning("ALLOWED_USER_IDS is empty. Bot is accepting all users.")
+
     application.run_polling(allowed_updates=Update.ALL_TYPES)

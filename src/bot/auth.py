@@ -19,8 +19,14 @@ def allowlisted(handler):
         if not user:
             return
 
-        allowlist = get_settings().allowlist
-        if not allowlist or user.id not in allowlist:
+        settings = get_settings()
+        allowlist = settings.allowlist
+
+        # Default to open access when no allowlist is configured.
+        if not allowlist and not settings.allowlist_strict:
+            return await handler(update, context)
+
+        if user.id not in allowlist:
             await _reject(update)
             return
 

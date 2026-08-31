@@ -7,16 +7,23 @@ from db.models import Base
 from core.config import get_settings
 
 
+def _normalize_database_url(db_url: str) -> str:
+    # Railway and some providers expose postgres://, while SQLAlchemy expects postgresql://.
+    if db_url.startswith("postgres://"):
+        return "postgresql://" + db_url[len("postgres://") :]
+    return db_url
+
+
 def _build_engine():
     settings = get_settings()
-    db_url = settings.database_url
+    db_url = _normalize_database_url(settings.database_url)
 
     if db_url.startswith("sqlite:///"):
         db_file = db_url.replace("sqlite:///", "", 1)
         Path(db_file).parent.mkdir(parents=True, exist_ok=True)
         return create_engine(db_url, connect_args={"check_same_thread": False})
 
-    return create_engine(db_url)
+    return create_engine(db_url, pool_pre_ping=True)
 
 
 engine = _build_engine()

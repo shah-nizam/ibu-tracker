@@ -25,6 +25,28 @@ This tool is not medical advice and not an emergency service. For dangerous symp
 5. Run API (optional):
    - uvicorn api.main:app --reload
 
+## Railway deployment
+
+Use a worker-style start command for the bot process:
+
+- `python main.py`
+
+Required environment variables:
+
+- `BOT_TOKEN` (or `TELEGRAM_BOT_TOKEN`)
+- `DATABASE_URL` (optional, defaults to SQLite)
+
+Access control variables:
+
+- `ALLOWED_USER_IDS` as comma-separated Telegram IDs (recommended)
+- `ALLOWLIST_STRICT=true` to block everyone except `ALLOWED_USER_IDS`
+
+Notes:
+
+- If `ALLOWED_USER_IDS` is empty and `ALLOWLIST_STRICT` is not set, the bot accepts all users.
+- `postgres://...` URLs are normalized automatically for SQLAlchemy.
+- On startup, the bot clears webhook mode and uses long polling.
+
 ## Commands
 
 - /start

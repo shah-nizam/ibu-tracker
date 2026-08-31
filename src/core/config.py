@@ -1,16 +1,30 @@
 from functools import lru_cache
 from typing import Optional
 
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    bot_token: str = ""
-    allowed_user_ids: str = ""
+    bot_token: str = Field(
+        default="",
+        validation_alias=AliasChoices("BOT_TOKEN", "TELEGRAM_BOT_TOKEN"),
+    )
+    allowed_user_ids: str = Field(
+        default="",
+        validation_alias=AliasChoices("ALLOWED_USER_IDS", "TELEGRAM_ALLOWED_USER_IDS"),
+    )
+    allowlist_strict: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("ALLOWLIST_STRICT", "REQUIRE_ALLOWLIST"),
+    )
     timezone: str = "Asia/Singapore"
-    database_url: str = "sqlite:///./data/ibu_tracker.db"
+    database_url: str = Field(
+        default="sqlite:///./data/ibu_tracker.db",
+        validation_alias=AliasChoices("DATABASE_URL", "RAILWAY_DATABASE_URL"),
+    )
     api_key: Optional[str] = None
 
     glucose_low_mmol: float = 4.0
