@@ -21,7 +21,7 @@ This tool is not medical advice and not an emergency service. For dangerous symp
    - pip install -e .
 3. Copy .env.example to .env and set values.
 4. Run the bot:
-   - python -m bot.main
+   - python main.py
 5. Run API (optional):
    - uvicorn api.main:app --reload
 
