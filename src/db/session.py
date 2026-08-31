@@ -10,7 +10,12 @@ from core.config import get_settings
 def _normalize_database_url(db_url: str) -> str:
     # Railway and some providers expose postgres://, while SQLAlchemy expects postgresql://.
     if db_url.startswith("postgres://"):
-        return "postgresql://" + db_url[len("postgres://") :]
+        db_url = "postgresql://" + db_url[len("postgres://") :]
+
+    # Ensure SQLAlchemy uses psycopg v3; plain postgresql:// defaults to psycopg2.
+    if db_url.startswith("postgresql://"):
+        return "postgresql+psycopg://" + db_url[len("postgresql://") :]
+
     return db_url
 
 
