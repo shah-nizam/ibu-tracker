@@ -33,16 +33,15 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
         "Commands:\n"
         "/log - Add a new reading\n"
-        "/recent - Show recent readings\n"
+        "/recent - Show recent readings for all users\n"
         "/remind <insulin|glucose|bp> <HH:MM> - Add daily reminder\n"
-        "/list_reminders - Show daily reminders"
+        "/list_reminders - Show daily reminders for all users"
     )
 
 
 @allowlisted
 async def recent(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    user = update.effective_user
-    summary = repo.recent_summary(user.id, limit=3)
+    summary = repo.recent_summary_all(limit=10)
 
     def section(title: str, rows: list[str]) -> str:
         if not rows:
@@ -56,7 +55,7 @@ async def recent(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             section("Insulin", summary["insulin"]),
         ]
     )
-    await update.message.reply_text(text)
+    await update.message.reply_text("Recent readings (all users):\n\n" + text)
 
 
 @allowlisted

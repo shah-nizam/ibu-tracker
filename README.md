@@ -42,12 +42,12 @@ Required environment variables:
 
 Access control variables:
 
-- `ALLOWED_USER_IDS` as comma-separated Telegram IDs (recommended)
-- `ALLOWLIST_STRICT=true` to block everyone except `ALLOWED_USER_IDS`
+- `ALLOWED_USER_IDS` as comma-separated Telegram IDs (required)
 
 Notes:
 
-- If `ALLOWED_USER_IDS` is empty and `ALLOWLIST_STRICT` is not set, the bot accepts all users.
+- Users not in `ALLOWED_USER_IDS` are blocked from using the bot.
+- Allowlisted users can view all users' glucose, blood pressure, insulin, and reminder data via `/recent` and `/list_reminders`.
 - `postgres://...` URLs are normalized automatically for SQLAlchemy.
 - On startup, the bot clears webhook mode and uses long polling.
 - If logs show `uvicorn: command not found`, the service is either using the wrong start command for the bot or dependencies were not installed during build.

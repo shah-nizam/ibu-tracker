@@ -86,6 +86,16 @@ class Repository:
             ).scalars()
             return list(rows)
 
+    def list_all_active_reminders(self) -> list[tuple[int, str, Reminder]]:
+        with get_session() as session:
+            rows = session.execute(
+                select(User.telegram_user_id, User.full_name, Reminder)
+                .join(Reminder, Reminder.user_id == User.id)
+                .where(Reminder.active == 1)
+                .order_by(Reminder.time_of_day.asc(), User.full_name.asc())
+            ).all()
+            return [(row[0], row[1], row[2]) for row in rows]
+
     def load_all_active_reminders(self) -> list[tuple[int, Reminder]]:
         with get_session() as session:
             rows = session.execute(
@@ -141,6 +151,49 @@ class Repository:
                 ],
             }
 
+    def recent_summary_all(self, limit: int = 10) -> dict[str, list[str]]:
+        with get_session() as session:
+            glucose_rows = session.execute(
+                select(User.full_name, User.telegram_user_id, GlucoseReading)
+                .join(GlucoseReading, GlucoseReading.user_id == User.id)
+                .order_by(desc(GlucoseReading.created_at))
+                .limit(limit)
+            ).all()
+
+            bp_rows = session.execute(
+                select(User.full_name, User.telegram_user_id, BloodPressureReading)
+                .join(BloodPressureReading, BloodPressureReading.user_id == User.id)
+                .order_by(desc(BloodPressureReading.created_at))
+                .limit(limit)
+            ).all()
+
+            insulin_rows = session.execute(
+                select(User.full_name, User.telegram_user_id, InsulinDose)
+                .join(InsulinDose, InsulinDose.user_id == User.id)
+                .order_by(desc(InsulinDose.created_at))
+                .limit(limit)
+            ).all()
+
+            local_tz = ZoneInfo(get_settings().timezone)
+
+            return {
+                "glucose": [
+                    f"{self._user_label(full_name, telegram_user_id)} - "
+                    f"{self._format_local_time(row.created_at, local_tz)} - {row.mmol:.1f} mmol/L"
+                    for full_name, telegram_user_id, row in glucose_rows
+                ],
+                "bp": [
+                    f"{self._user_label(full_name, telegram_user_id)} - "
+                    f"{self._format_local_time(row.created_at, local_tz)} - {row.systolic}/{row.diastolic} mmHg"
+                    for full_name, telegram_user_id, row in bp_rows
+                ],
+                "insulin": [
+                    f"{self._user_label(full_name, telegram_user_id)} - "
+                    f"{self._format_local_time(row.created_at, local_tz)} - {row.units:.1f} units"
+                    for full_name, telegram_user_id, row in insulin_rows
+                ],
+            }
+
     def _get_or_create_user_in_session(self, session, telegram_user_id: int, full_name: str) -> User:
         user = session.execute(
             select(User).where(User.telegram_user_id == telegram_user_id)
@@ -157,3 +210,7 @@ class Repository:
         # Existing records are stored as UTC-naive timestamps; treat them as UTC and render in local tz.
         utc_dt = dt.replace(tzinfo=timezone.utc)
         return utc_dt.astimezone(local_tz).strftime("%Y-%m-%d %H:%M")
+
+    def _user_label(self, full_name: str, telegram_user_id: int) -> str:
+        name = full_name.strip() if full_name else "Unknown"
+        return f"{name} ({telegram_user_id})"

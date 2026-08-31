@@ -27,14 +27,7 @@ def allowlisted(handler):
         if not user:
             return
 
-        settings = get_settings()
-        allowlist = settings.allowlist
-
-        # Default to open access when no allowlist is configured.
-        if not allowlist and not settings.allowlist_strict:
-            logger.info("Allowlist bypassed (open mode) for user_id=%s", user.id)
-            return await handler(update, context)
-
+        allowlist = get_settings().allowlist
         if user.id not in allowlist:
             logger.warning("Blocked user_id=%s by allowlist", user.id)
             await _reject(update)

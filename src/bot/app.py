@@ -42,13 +42,16 @@ async def remind(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 @allowlisted
 async def list_reminders(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    reminders = repo.list_active_reminders(update.effective_user.id)
+    reminders = repo.list_all_active_reminders()
     if not reminders:
         await update.message.reply_text("No active reminders.")
         return
 
-    lines = [f"- {row.kind} at {row.time_of_day.strftime('%H:%M')}" for row in reminders]
-    await update.message.reply_text("Active reminders:\n" + "\n".join(lines))
+    lines = [
+        f"- {full_name or 'Unknown'} ({telegram_user_id}): {row.kind} at {row.time_of_day.strftime('%H:%M')}"
+        for telegram_user_id, full_name, row in reminders
+    ]
+    await update.message.reply_text("Active reminders (all users):\n" + "\n".join(lines))
 
 
 def main() -> None:
