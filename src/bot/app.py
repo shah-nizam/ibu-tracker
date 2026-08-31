@@ -20,13 +20,20 @@ logger = logging.getLogger(__name__)
 async def remind(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.effective_user
     args = context.args
-    if len(args) != 2:
-        await update.message.reply_text("Usage: /remind <insulin|glucose|bp> <HH:MM>")
+    if len(args) < 2:
+        await update.message.reply_text("Usage: /remind <insulin|glucose|bp> <HH:MM> [dose_units]")
         return
 
     kind = args[0].strip().lower()
     if kind not in {"insulin", "glucose", "bp"}:
         await update.message.reply_text("Kind must be one of: insulin, glucose, bp")
+        return
+
+    if kind == "insulin" and len(args) not in {2, 3}:
+        await update.message.reply_text("Usage: /remind insulin <HH:MM> [dose_units]")
+        return
+    if kind != "insulin" and len(args) != 2:
+        await update.message.reply_text(f"Usage: /remind {kind} <HH:MM>")
         return
 
     try:
@@ -35,9 +42,32 @@ async def remind(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await update.message.reply_text("Invalid time format. Use HH:MM, for example 07:30")
         return
 
-    reminder = repo.add_reminder(user.id, user.full_name, kind, parsed)
-    schedule_daily_reminder(context.application, user.id, reminder.id, kind, parsed)
-    await update.message.reply_text(f"Saved daily {kind} reminder at {parsed.strftime('%H:%M')}")
+    dose_units = None
+    if kind == "insulin" and len(args) == 3:
+        try:
+            dose_units = float(args[2].strip())
+            if dose_units <= 0:
+                raise ValueError()
+        except ValueError:
+            await update.message.reply_text("Invalid insulin dose. Use a positive number, for example 10 or 8.5")
+            return
+
+    reminder = repo.add_reminder(user.id, user.full_name, kind, parsed, dose_units=dose_units)
+    schedule_daily_reminder(
+        context.application,
+        user.id,
+        reminder.id,
+        kind,
+        parsed,
+        dose_units=dose_units,
+    )
+
+    if kind == "insulin" and dose_units is not None:
+        await update.message.reply_text(
+            f"Saved daily insulin reminder at {parsed.strftime('%H:%M')} ({dose_units:g} units)"
+        )
+    else:
+        await update.message.reply_text(f"Saved daily {kind} reminder at {parsed.strftime('%H:%M')}")
 
 
 @allowlisted
@@ -48,7 +78,9 @@ async def list_reminders(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         return
 
     lines = [
-        f"- {full_name or 'Unknown'} ({telegram_user_id}): {row.kind} at {row.time_of_day.strftime('%H:%M')}"
+        f"- {full_name or 'Unknown'} ({telegram_user_id}): "
+        f"{row.kind} at {row.time_of_day.strftime('%H:%M')}"
+        f"{f' ({row.dose_units:g} units)' if row.kind == 'insulin' and row.dose_units is not None else ''}"
         for telegram_user_id, full_name, row in reminders
     ]
     await update.message.reply_text("Active reminders (all users):\n" + "\n".join(lines))

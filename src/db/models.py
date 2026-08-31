@@ -1,4 +1,5 @@
 from datetime import datetime, time
+from typing import Optional
 
 from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Time
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -61,6 +62,7 @@ class Reminder(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     kind: Mapped[str] = mapped_column(String(16), index=True)
     time_of_day: Mapped[time] = mapped_column(Time)
+    dose_units: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     active: Mapped[int] = mapped_column(Integer, default=1)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 

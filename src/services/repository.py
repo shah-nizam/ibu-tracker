@@ -1,4 +1,5 @@
 from datetime import datetime, time, timezone
+from typing import Optional
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import desc, select
@@ -62,10 +63,23 @@ class Repository:
             session.refresh(dose)
             return dose
 
-    def add_reminder(self, telegram_user_id: int, full_name: str, kind: str, at_time: time) -> Reminder:
+    def add_reminder(
+        self,
+        telegram_user_id: int,
+        full_name: str,
+        kind: str,
+        at_time: time,
+        dose_units: Optional[float] = None,
+    ) -> Reminder:
         with get_session() as session:
             user = self._get_or_create_user_in_session(session, telegram_user_id, full_name)
-            reminder = Reminder(user_id=user.id, kind=kind, time_of_day=at_time, active=1)
+            reminder = Reminder(
+                user_id=user.id,
+                kind=kind,
+                time_of_day=at_time,
+                dose_units=dose_units,
+                active=1,
+            )
             session.add(reminder)
             session.commit()
             session.refresh(reminder)

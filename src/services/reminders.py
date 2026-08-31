@@ -1,4 +1,5 @@
 from datetime import time
+from typing import Optional
 from zoneinfo import ZoneInfo
 
 from telegram.ext import Application
@@ -18,16 +19,27 @@ async def reminder_callback(context):
     data = job.data
     kind = data["kind"]
     chat_id = data["chat_id"]
+    dose_units = data.get("dose_units")
 
     text_map = {
         "insulin": "Reminder: Please record insulin now.",
         "glucose": "Reminder: Please check and record glucose now.",
         "bp": "Reminder: Please check and record blood pressure now.",
     }
+    if kind == "insulin" and dose_units is not None:
+        text_map["insulin"] = f"Reminder: Please record insulin now ({dose_units:g} units)."
+
     await context.bot.send_message(chat_id=chat_id, text=text_map.get(kind, "Reminder"))
 
 
-def schedule_daily_reminder(app: Application, user_id: int, reminder_id: int, kind: str, when: time) -> None:
+def schedule_daily_reminder(
+    app: Application,
+    user_id: int,
+    reminder_id: int,
+    kind: str,
+    when: time,
+    dose_units: Optional[float] = None,
+) -> None:
     settings = get_settings()
     tz = ZoneInfo(settings.timezone)
     when_local = when if when.tzinfo else when.replace(tzinfo=tz)
@@ -37,7 +49,7 @@ def schedule_daily_reminder(app: Application, user_id: int, reminder_id: int, ki
         days=(0, 1, 2, 3, 4, 5, 6),
         chat_id=user_id,
         name=_job_name(user_id, reminder_id),
-        data={"kind": kind, "chat_id": user_id},
+        data={"kind": kind, "chat_id": user_id, "dose_units": dose_units},
         job_kwargs={"misfire_grace_time": 300},
     )
 
@@ -51,4 +63,5 @@ def load_persisted_reminders(app: Application) -> None:
             reminder_id=reminder.id,
             kind=reminder.kind,
             when=reminder.time_of_day,
+            dose_units=reminder.dose_units,
         )

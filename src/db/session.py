@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import Session, sessionmaker
 
 from db.models import Base
@@ -37,6 +37,21 @@ SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 
 def init_db() -> None:
     Base.metadata.create_all(bind=engine)
+    _ensure_reminder_columns()
+
+
+def _ensure_reminder_columns() -> None:
+    inspector = inspect(engine)
+    table_names = set(inspector.get_table_names())
+    if "reminders" not in table_names:
+        return
+
+    existing_columns = {col["name"] for col in inspector.get_columns("reminders")}
+    if "dose_units" in existing_columns:
+        return
+
+    with engine.begin() as conn:
+        conn.execute(text("ALTER TABLE reminders ADD COLUMN dose_units FLOAT"))
 
 
 def get_session() -> Session:
