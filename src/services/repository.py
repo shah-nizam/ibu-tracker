@@ -139,14 +139,17 @@ class Repository:
             return {
                 "glucose": [
                     f"{self._format_local_time(row.created_at, local_tz)} - {row.mmol:.1f} mmol/L"
+                    f"{self._format_note(row.note)}"
                     for row in glucose_rows
                 ],
                 "bp": [
                     f"{self._format_local_time(row.created_at, local_tz)} - {row.systolic}/{row.diastolic} mmHg"
+                    f"{self._format_note(row.note)}"
                     for row in bp_rows
                 ],
                 "insulin": [
                     f"{self._format_local_time(row.created_at, local_tz)} - {row.units:.1f} units"
+                    f"{self._format_note(row.note)}"
                     for row in insulin_rows
                 ],
             }
@@ -180,16 +183,19 @@ class Repository:
                 "glucose": [
                     f"{self._user_label(full_name, telegram_user_id)} - "
                     f"{self._format_local_time(row.created_at, local_tz)} - {row.mmol:.1f} mmol/L"
+                    f"{self._format_note(row.note)}"
                     for full_name, telegram_user_id, row in glucose_rows
                 ],
                 "bp": [
                     f"{self._user_label(full_name, telegram_user_id)} - "
                     f"{self._format_local_time(row.created_at, local_tz)} - {row.systolic}/{row.diastolic} mmHg"
+                    f"{self._format_note(row.note)}"
                     for full_name, telegram_user_id, row in bp_rows
                 ],
                 "insulin": [
                     f"{self._user_label(full_name, telegram_user_id)} - "
                     f"{self._format_local_time(row.created_at, local_tz)} - {row.units:.1f} units"
+                    f"{self._format_note(row.note)}"
                     for full_name, telegram_user_id, row in insulin_rows
                 ],
             }
@@ -214,3 +220,7 @@ class Repository:
     def _user_label(self, full_name: str, telegram_user_id: int) -> str:
         name = full_name.strip() if full_name else "Unknown"
         return f"{name} ({telegram_user_id})"
+
+    def _format_note(self, note: str) -> str:
+        clean = (note or "").strip()
+        return f" | note: {clean}" if clean else ""
